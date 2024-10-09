@@ -33,7 +33,7 @@
 
 
 # install imutils
-get_ipython().system('pip install --upgrade imutils')
+# get_ipython().system('pip install --upgrade imutils')
 
 # import packages
 from scipy.spatial import distance as dist
@@ -51,7 +51,7 @@ from matplotlib import gridspec
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report, roc_auc_score
 import matplotlib.pyplot as plt
 
-get_ipython().run_line_magic('matplotlib', 'inline')
+# get_ipython().run_line_magic('matplotlib', 'inline')
 
 # define three constants.
 # You can later experiment with these constants by changing them to adaptive variables.
@@ -63,7 +63,7 @@ SKIP_FIRST_FRAMES = 0  # how many frames we should skip at the beggining
 
 # initialize dlib variables
 dlib_detector = dlib.get_frontal_face_detector()
-dlib_predictor = dlib.shape_predictor("E:\Eye-Blink-Detection-master\shape_predictor_68_face_landmarks.dat")
+dlib_predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 # initialize output structures
 scores_string = ""
@@ -91,23 +91,24 @@ def display_folder(path):
 
 
 # print content of "../input" folder
-display_folder("E:\Eye-Blink-Detection-master\input")
+display_folder("E:/Eye-Blink-Detection-master/input")
 
 
 # **We define a function that calculates EAR values:**
 #
-# It's an implementation of [paper by Soukupova and Cech (2016).](http://vision.fe.uni-lj.si/cvww2016/proceedings/papers/05.pdf)
+# It's an implementation of [paper by Soukupova and Cech (2016).](
+# http://vision.fe.uni-lj.si/cvww2016/proceedings/papers/05.pdf)
 
 # In[134]:
 
 
 # define ear function
 def eye_aspect_ratio(eye):
-    # compute the euclidean distances between the two sets of
+    # compute the Euclidean distances between the two sets of
     # vertical eye landmarks (x, y)-coordinates
     A = dist.euclidean(eye[1], eye[5])
     B = dist.euclidean(eye[2], eye[4])
-    # compute the euclidean distance between the horizontal
+    # compute the Euclidean distance between the horizontal
     # eye landmark (x, y)-coordinates
     C = dist.euclidean(eye[0], eye[3])
     # compute the eye aspect ratio
@@ -346,9 +347,9 @@ def detect_outliers_iqr(input_list):
 import scipy.stats as st
 
 
-# calculate upper and lower limits for given confidence interval
+# calculate upper and lower limits for a given confidence interval
 def detect_outliers_conf(input_list, confidence=0.95):
-    # identify boudaries
+    # identify boundaries
     lower, upper = st.t.interval(confidence, len(input_list) - 1, loc=np.mean(input_list), scale=st.sem(input_list))
 
     # identify outliers
@@ -366,9 +367,9 @@ def detect_outliers_conf(input_list, confidence=0.95):
 # In[166]:
 
 
-# calculate upper and lower limits for given confidence interval
+# calculate upper and lower limits for a given confidence interval
 def detect_outliers_z(input_list, z_limit=2):
-    # identify boudaries
+    # identify boundaries
     mu = input_list.mean()
     sigma = input_list.std()
     val = z_limit * sigma
@@ -404,18 +405,18 @@ def skip_first_n_frames(frame_info_df, closeness_list, blink_list, processed_fra
     recalculated_closeness_list = closeness_list[skip_n:]  # skip first n frames
 
     # update 'reserved_for_calibration' column of frame_info_df for first "skip_n" frames
-    frame_info_df.loc[:skip_n - 1, 'reserved_for_calibration'] = True  # .loc includes second index -> [first:second]
+    frame_info_df.loc[:skip_n - 1, 'reserved_for_calibration'] = True  # .loc includes second index → [first:second]
 
     # recalculate blink_list
     # get blink count in the first "SKIP_FIRST_FRAMES" frames
     blink_count_til_n = frame_info_df.loc[skip_n, 'blink_no']
-    # determine start of the blink that comes after first n frames
+    # determine the start of the blink that comes after the first n frames
     start_of_blink = blink_list[blink_count_til_n][0] - 1  # (-1) since frame-codes in blink_list start from 1
-    # if some frames of the the blink starts before n
+    # if some frames of the blink start before n
     if start_of_blink < skip_n:
         # find frames of the blink that comes before n
         frames_to_discard = skip_n - start_of_blink
-        # find duration of the blink
+        # find the duration of the blink
         duration_of_blink = blink_list[blink_count_til_n][1] - blink_list[blink_count_til_n][0] + 1
         # calculate new duration of blink after discarding first n frames
         new_duration = duration_of_blink - frames_to_discard
