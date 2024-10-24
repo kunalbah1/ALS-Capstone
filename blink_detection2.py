@@ -120,6 +120,81 @@ def eye_aspect_ratio(eye):
 # **We define a function that reads a video and calculate it's EAR values**:
 
 # In[135]:
+def process_live_video(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36, rEnd=42,
+                       ear_th=0.21, consec_th=3):
+    # define necessary variables
+    COUNTER = 0
+    TOTAL = 0
+    blink_start = 0
+    blink_end = 0
+    closeness = 0
+    output_closeness = []
+    output_blinks = []
+    blink_info = (0, 0)
+
+    # initialize webcam video capture (use 0 for the default camera)
+    cap = cv2.VideoCapture(0)
+    time.sleep(1.0)
+
+    while True:
+        # grab the frame from the video stream, resize it, and convert it to grayscale
+        grabbed, frame = cap.read()
+        if not grabbed:
+            break
+
+        height = frame.shape[0]
+        weight = frame.shape[1]
+        frame = cv2.resize(frame, (480, int(480 * height / weight)))
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # detect faces in the grayscale frame
+        rects = detector(gray, 0)
+
+        # loop over the face detections
+        for rect in rects:
+            shape = predictor(gray, rect)
+            shape = np.array([[p.x, p.y] for p in shape.parts()])
+
+            leftEye = shape[lStart:lEnd]
+            rightEye = shape[rStart:rEnd]
+            leftEAR = eye_aspect_ratio(leftEye)
+            rightEAR = eye_aspect_ratio(rightEye)
+            ear = (leftEAR + rightEAR) / 2.0
+
+            leftEyeHull = cv2.convexHull(leftEye)
+            rightEyeHull = cv2.convexHull(rightEye)
+            cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
+            cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
+
+            if ear < ear_th:
+                COUNTER += 1
+                closeness = 1
+                output_closeness.append(closeness)
+            else:
+                if COUNTER >= consec_th:
+                    TOTAL += 1
+                    blink_start = TOTAL - COUNTER
+                    blink_end = TOTAL - 1
+                    blink_info = (blink_start, blink_end)
+                    output_blinks.append(blink_info)
+                COUNTER = 0
+                closeness = 0
+                output_closeness.append(closeness)
+
+            cv2.putText(frame, "Blinks: {}".format(TOTAL), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(frame, "EAR: {:.2f}".format(ear), (300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        # show the live video frame
+        cv2.imshow("Frame", frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):  # stop if 'q' is pressed
+            break
+
+    # clean up
+    cv2.destroyAllWindows()
+    cap.release()
+
+    return output_closeness, output_blinks
 
 
 # process a given video file
@@ -283,9 +358,8 @@ def process_video(input_file, detector=dlib_detector, predictor=dlib_predictor, 
 file_path = "E:/Eye-Blink-Detection-master/input/talkingFace/talking.avi"
 
 # process the video and get the results
-frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_video(file_path,
-                                                                                                           ear_th=EAR_THRESHOLD,
-                                                                                                           consec_th=EAR_CONSEC_FRAMES)
+frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36, rEnd=42,
+                       ear_th=0.21, consec_th=3)
 
 
 # In[137]:
@@ -1097,9 +1171,8 @@ def simple_model(input_full_path, ear_th=0.21, consec_th=3, skip_n=0, display_bl
     scores_string = ""
 
     # process the video and get the results
-    frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_video(
-        input_full_path, ear_th=ear_th, consec_th=consec_th)
-
+    frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36, rEnd=42,
+                       ear_th=0.21, consec_th=3)
     # recalculate data by skipping "skip_n" frames
     frame_info_df, closeness_predictions_skipped, blink_predictions_skipped, frames_skipped = skip_first_n_frames(
         frame_info_df, closeness_predictions, blink_predictions, frames, skip_n=skip_n)
