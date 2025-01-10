@@ -138,15 +138,25 @@ def read_frame_from_serial():
 # **We define a function that reads a video and calculate it's EAR values**:
 
 # In[135]:
-def process_live_video_from_serial():
-    """Process video frames from Serial and perform blink detection."""
+def process_live_video_from_serial(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36,
+                                   rEnd=42,
+                                   ear_th=EAR_THRESHOLD, consec_th=EAR_CONSEC_FRAMES):
+    """Process video frames from Serial, perform blink detection, and return results."""
     COUNTER = 0
     TOTAL = 0
+    current_frame = 1
+    blink_start = 0
+    blink_end = 0
+    closeness = 0
+    output_closeness = []
+    output_blinks = []
+    blink_info = (0, 0)
+    processed_frames = []
+    frame_info_list = []
 
     while True:
         # Read frame from Serial
         frame_data = read_frame_from_serial()
-        print("omg")
 
         # Decode JPEG frame
         np_frame = np.frombuffer(frame_data, dtype=np.uint8)
@@ -159,14 +169,14 @@ def process_live_video_from_serial():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Detect faces
-        rects = dlib_detector(gray, 0)
+        rects = detector(gray, 0)
 
         for rect in rects:
-            shape = dlib_predictor(gray, rect)
+            shape = predictor(gray, rect)
             shape = np.array([[p.x, p.y] for p in shape.parts()])
 
-            leftEye = shape[42:48]
-            rightEye = shape[36:42]
+            leftEye = shape[lStart:lEnd]
+            rightEye = shape[rStart:rEnd]
             leftEAR = eye_aspect_ratio(leftEye)
             rightEAR = eye_aspect_ratio(rightEye)
             ear = (leftEAR + rightEAR) / 2.0
@@ -178,22 +188,68 @@ def process_live_video_from_serial():
             cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
 
             # Check for blinks
-            if ear < EAR_THRESHOLD:
+            if ear < ear_th:
                 COUNTER += 1
+                closeness = 1
+                output_closeness.append(closeness)
             else:
-                if COUNTER >= EAR_CONSEC_FRAMES:
+                if COUNTER >= consec_th:
                     TOTAL += 1
+                    blink_start = current_frame - COUNTER
+                    blink_end = current_frame - 1
+                    blink_info = (blink_start, blink_end)
+                    output_blinks.append(blink_info)
                 COUNTER = 0
+                closeness = 0
+                output_closeness.append(closeness)
 
+            # Draw blink statistics and EAR on the frame
             cv2.putText(frame, f"Blinks: {TOTAL}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             cv2.putText(frame, f"EAR: {ear:.2f}", (300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-        # Display the frame
-        cv2.imshow("Frame", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):  # Exit on pressing 'q'
+            # Build frame info dictionary
+            frame_info = {
+                'frame_no': current_frame,
+                'face_detected': True,  # Face is detected if we're in this loop
+                'face_coordinates': [[rect.tl_corner().x, rect.tl_corner().y],
+                                     [rect.tr_corner().x, rect.tr_corner().y],
+                                     [rect.bl_corner().x, rect.bl_corner().y],
+                                     [rect.br_corner().x, rect.br_corner().y]],
+                'left_eye_coordinates': [leftEye[0], leftEye[1]],
+                'right_eye_coordinates': [rightEye[0], rightEye[1]],
+                'left_ear': leftEAR,
+                'right_ear': rightEAR,
+                'avg_ear': ear,
+                'closeness': closeness,
+                'blink_no': TOTAL,
+                'blink_start_frame': blink_start,
+                'blink_end_frame': blink_end,
+                'reserved_for_calibration': False
+            }
+            frame_info_list.append(frame_info)
+
+        # Show the frame
+        cv2.imshow("Video Stream", frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):  # Exit on pressing 'q'
             break
 
+        processed_frames.append(frame)
+        current_frame += 1
+
+    # Clean up
     cv2.destroyAllWindows()
+
+    # Build video info dictionary
+    video_info_dict = {
+        'fps': None,  # FPS is unavailable for Serial live feed
+        'frame_count': current_frame - 1,
+        'duration(s)': None,  # Duration is also unavailable
+    }
+
+    # Return results
+    return pd.DataFrame(
+        frame_info_list), output_closeness, output_blinks, processed_frames, video_info_dict, "Processing live video completed."
 
 
 # process a given video file
@@ -357,7 +413,13 @@ def process_video(input_file, detector=dlib_detector, predictor=dlib_predictor, 
 file_path = "E:/Eye-Blink-Detection-master/input/talkingFace/talking.avi"
 
 # process the video and get the results
-frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video_from_serial()
+frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video_from_serial(
+    detector=dlib_detector,
+    predictor=dlib_predictor,
+    ear_th=EAR_THRESHOLD,
+    consec_th=EAR_CONSEC_FRAMES
+)
+
 
 
 # In[137]:
