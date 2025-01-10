@@ -125,6 +125,8 @@ def eye_aspect_ratio(eye):
 def read_frame_from_serial():
     """Read a single frame from the Serial connection."""
     frame_data = b''
+    # This will eventually read in: 'ACK CMD ArduCAM Start! END\r\nACK CMD SPI interface OK. END\r\nACK CMD OV2640 detected. END\r\n'
+    # However, after this it gets stuck on a loop between while True and continue.
     while True:
         byte = ser.read(1)
         if not byte:
