@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-
 # # EYE BLINK DETECTION:
 # # 1) Simple Model
 # Based on tutorial:
@@ -39,6 +38,7 @@
 from scipy.spatial import distance as dist
 import imutils
 from imutils import face_utils
+import serial
 import numpy as np
 import pandas as pd
 import dlib
@@ -67,6 +67,11 @@ dlib_predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 # initialize output structures
 scores_string = ""
+
+# Serial configuration
+serial_port = 'COM6'  # Adjust this to your port
+baud_rate = 921600
+ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
 
 # **Datasets are ready-to-use in "../input" folder. Let's take a look at them.** > yawning.avi --> a test video from
@@ -117,84 +122,78 @@ def eye_aspect_ratio(eye):
     return ear
 
 
+def read_frame_from_serial():
+    """Read a single frame from the Serial connection."""
+    frame_data = b''
+    while True:
+        byte = ser.read(1)
+        if not byte:
+            continue
+        frame_data += byte
+        if frame_data.endswith(b'\xFF\xD9'):  # JPEG end-of-file marker
+            break
+    return frame_data
+
+
 # **We define a function that reads a video and calculate it's EAR values**:
 
 # In[135]:
-def process_live_video(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36, rEnd=42,
-                       ear_th=0.21, consec_th=3):
-    # define necessary variables
+def process_live_video_from_serial():
+    """Process video frames from Serial and perform blink detection."""
     COUNTER = 0
     TOTAL = 0
-    blink_start = 0
-    blink_end = 0
-    closeness = 0
-    output_closeness = []
-    output_blinks = []
-    blink_info = (0, 0)
-
-    # initialize webcam video capture (use 0 for the default camera)
-    cap = cv2.VideoCapture(0)
-    time.sleep(1.0)
 
     while True:
-        # grab the frame from the video stream, resize it, and convert it to grayscale
-        grabbed, frame = cap.read()
-        if not grabbed:
-            break
+        # Read frame from Serial
+        frame_data = read_frame_from_serial()
+        print("omg")
 
-        height = frame.shape[0]
-        weight = frame.shape[1]
-        frame = cv2.resize(frame, (480, int(480 * height / weight)))
+        # Decode JPEG frame
+        np_frame = np.frombuffer(frame_data, dtype=np.uint8)
+        frame = cv2.imdecode(np_frame, cv2.IMREAD_COLOR)
+
+        if frame is None:
+            continue
+
+        # Convert frame to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # detect faces in the grayscale frame
-        rects = detector(gray, 0)
+        # Detect faces
+        rects = dlib_detector(gray, 0)
 
-        # loop over the face detections
         for rect in rects:
-            shape = predictor(gray, rect)
+            shape = dlib_predictor(gray, rect)
             shape = np.array([[p.x, p.y] for p in shape.parts()])
 
-            leftEye = shape[lStart:lEnd]
-            rightEye = shape[rStart:rEnd]
+            leftEye = shape[42:48]
+            rightEye = shape[36:42]
             leftEAR = eye_aspect_ratio(leftEye)
             rightEAR = eye_aspect_ratio(rightEye)
             ear = (leftEAR + rightEAR) / 2.0
 
+            # Draw eye regions and EAR on the frame
             leftEyeHull = cv2.convexHull(leftEye)
             rightEyeHull = cv2.convexHull(rightEye)
             cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
             cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
 
-            if ear < ear_th:
+            # Check for blinks
+            if ear < EAR_THRESHOLD:
                 COUNTER += 1
-                closeness = 1
-                output_closeness.append(closeness)
             else:
-                if COUNTER >= consec_th:
+                if COUNTER >= EAR_CONSEC_FRAMES:
                     TOTAL += 1
-                    blink_start = TOTAL - COUNTER
-                    blink_end = TOTAL - 1
-                    blink_info = (blink_start, blink_end)
-                    output_blinks.append(blink_info)
                 COUNTER = 0
-                closeness = 0
-                output_closeness.append(closeness)
 
-            cv2.putText(frame, "Blinks: {}".format(TOTAL), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            cv2.putText(frame, "EAR: {:.2f}".format(ear), (300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(frame, f"Blinks: {TOTAL}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(frame, f"EAR: {ear:.2f}", (300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-        # show the live video frame
+        # Display the frame
         cv2.imshow("Frame", frame)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):  # stop if 'q' is pressed
+        if cv2.waitKey(1) & 0xFF == ord('q'):  # Exit on pressing 'q'
             break
 
-    # clean up
     cv2.destroyAllWindows()
-    cap.release()
-
-    return output_closeness, output_blinks
 
 
 # process a given video file
@@ -358,8 +357,7 @@ def process_video(input_file, detector=dlib_detector, predictor=dlib_predictor, 
 file_path = "E:/Eye-Blink-Detection-master/input/talkingFace/talking.avi"
 
 # process the video and get the results
-frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36, rEnd=42,
-                       ear_th=0.21, consec_th=3)
+frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video_from_serial()
 
 
 # In[137]:
@@ -1171,8 +1169,7 @@ def simple_model(input_full_path, ear_th=0.21, consec_th=3, skip_n=0, display_bl
     scores_string = ""
 
     # process the video and get the results
-    frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video(detector=dlib_detector, predictor=dlib_predictor, lStart=42, lEnd=48, rStart=36, rEnd=42,
-                       ear_th=0.21, consec_th=3)
+    frame_info_df, closeness_predictions, blink_predictions, frames, video_info, scores_string = process_live_video_from_serial()
     # recalculate data by skipping "skip_n" frames
     frame_info_df, closeness_predictions_skipped, blink_predictions_skipped, frames_skipped = skip_first_n_frames(
         frame_info_df, closeness_predictions, blink_predictions, frames, skip_n=skip_n)
