@@ -121,32 +121,57 @@ def eye_aspect_ratio(eye):
     # return the eye aspect ratio
     return ear
 
+# ** Original read_frame_from_serial function ** :
 
+# def read_frame_from_serial():
+#     """Read a single frame from the Serial connection."""
+#     frame_data = b''
+#     # This will eventually read in: 'ACK CMD ArduCAM Start! END\r\nACK CMD SPI interface OK. END\r\nACK CMD OV2640 detected. END\r\n'
+#     # However, after this it gets stuck on a loop between while True and continue.
+#     while True:
+#         byte = ser.read(1)
+#         if not byte:
+#             continue
+#         frame_data += byte
+#         if frame_data.endswith(b'\xFF\xD9'):  # JPEG end-of-file marker
+#             break
+#     return frame_data
+
+#  ** Deyan's Attempt at fixing read_frame_from_serial ** :
 def read_frame_from_serial():
-    """Read a single frame (JPEG) from the Serial connection."""
+    """Read a single frame from the Serial connection."""
     frame_data = b''
-    in_image = False  # Flag to track if we are inside an image data stream
+    reading_frame = False  # Flag to indicate if we are inside a frame
+    start_marker = b'\xFF\xD8'  # JPEG start-of-file marker
+    end_marker = b'\xFF\xD9'  # JPEG end-of-file marker
+    timeout_limit = 5  # Maximum time to wait for a frame (in seconds)
+    start_time = time.time()
 
     while True:
-        byte = ser.read(1)
+        # Check for timeout
+        if time.time() - start_time > timeout_limit:
+            print("Timeout: Could not read a complete frame.")
+            return None
+
+        byte = ser.read(1)  # Read one byte from serial
         if not byte:
-            continue
+            continue  # Skip if no byte is read
 
-        # If not currently in an image, check for the start marker
-        if not in_image:
-            if byte == b'\xFF':  # Possible start of JPEG
-                next_byte = ser.read(1)
-                if next_byte == b'\xD8':  # Confirm JPEG start marker
-                    frame_data = b'\xFF\xD8'
-                    in_image = True
-            continue
-
-        # If inside an image, collect data
-        frame_data += byte
-
-        # Check for the JPEG end marker
-        if frame_data.endswith(b'\xFF\xD9'):
-            break
+        if not reading_frame:
+            # Wait for the start marker
+            if byte == start_marker[0]:  # Potential start of frame
+                frame_data += byte
+                if frame_data.endswith(start_marker):  # Confirm start marker
+                    reading_frame = True
+                    print("Start of frame detected.")
+            else:
+                frame_data = b''  # Clear buffer if not a valid start marker
+        else:
+            # Accumulate bytes until end marker is found
+            frame_data += byte
+            if frame_data.endswith(end_marker):  # Found end marker
+                print("End of frame detected.")
+                break
 
     return frame_data
 
