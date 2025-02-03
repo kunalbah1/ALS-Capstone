@@ -4,7 +4,7 @@ import numpy as np
 
 # Define the serial port and baud rate
 serial_port = 'COM6'  # Replace with your actual COM port
-baud_rate = 921600
+baud_rate = 115200
 
 # Open the serial port
 ser = serial.Serial(serial_port, baud_rate, timeout=5)
@@ -51,7 +51,6 @@ def main():
         try:
             # Read a frame from the serial port
             frame_data = read_frame()
-
 
             # Decode the frame (MJPEG format)
             frame_array = np.asarray(frame_data, dtype=np.uint8)
