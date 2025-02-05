@@ -14,7 +14,6 @@ void setup() {
     digitalWrite(CS_PIN, HIGH);
 
     Serial.println("Initializing camera...");
-    delay(100);
 
     // SPI Test to confirm communication
     myCAM.write_reg(ARDUCHIP_TEST1, 0x55);
@@ -50,7 +49,7 @@ void setup() {
     myCAM.set_format(JPEG);
     myCAM.InitCAM();
     myCAM.OV2640_set_JPEG_size(OV2640_320x240);  // Set resolution
-    delay(1000);
+    delay(500);
     Serial.println("✅ Camera initialized successfully!");
 }
 
@@ -86,6 +85,5 @@ void loop() {
     // Send end marker
     Serial.println("---END---");
 
-    delay(1000);  // Delay before capturing next frame
+    delay(30);  // Adjusted for higher frame rate
 }
-
