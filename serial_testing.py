@@ -1,52 +1,68 @@
 import serial
-import cv2
 import numpy as np
+import cv2
+import time
 
-# Configure the serial port
-ser = serial.Serial('COM6', 115200, timeout=1)
+# Increase baud rate for faster transmission
+BAUD_RATE = 921600  # Try 1,000,000 if supported
+SERIAL_PORT = "COM6"  # Adjust based on your setup
+
+# Open serial connection
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
 
 
-def read_image_from_serial():
-    image_data = bytearray()
-    start_found = False
+def read_frame():
+    """ Reads a full frame from the serial stream. """
+    buffer = bytearray()
 
+    # Find start marker
     while True:
-        line = ser.readline()
-
-        if not start_found:
-            if b'---START---' in line:
-                start_found = True
-                print("📸 Start of image detected!")
-                continue
-        elif b'---END---' in line:
-            print("✅ End of image detected!")
+        chunk = ser.readline()
+        if b"---START---" in chunk:
             break
-        elif start_found:
-            image_data.extend(line)
 
-    return bytes(image_data)
-
-
-def main():
+    # Read image data until end marker
     while True:
-        image_bytes = read_image_from_serial()
+        chunk = ser.read(1024)  # Read in chunks of 1024 bytes
+        if b"---END---" in chunk:
+            buffer += chunk.split(b"---END---")[0]
+            break
+        buffer += chunk
 
-        if len(image_bytes) > 0:
-            np_arr = np.frombuffer(image_bytes, np.uint8)
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-            if frame is not None:
-                cv2.imshow('Video Feed', frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-            else:
-                print("⚠️ Failed to decode image.")
-        else:
-            print("⚠️ No image data received.")
-
-    ser.close()
-    cv2.destroyAllWindows()
+    return np.frombuffer(buffer, dtype=np.uint8)
 
 
-if __name__ == "__main__":
-    main()
+# Initialize OpenCV window
+cv2.namedWindow("ArduCAM Stream", cv2.WINDOW_AUTOSIZE)
+
+print("Streaming video... Press 'q' to exit.")
+
+while True:
+    start_time = time.time()
+
+    frame_data = read_frame()
+
+    if frame_data.size == 0:
+        print("⚠️ No image data received.")
+        continue
+
+    # Decode the JPEG frame
+    frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
+    if frame is None:
+        print("⚠️ Failed to decode image.")
+        continue
+
+    # Display frame
+    cv2.imshow("ArduCAM Stream", frame)
+
+    # Calculate FPS
+    # elapsed_time = time.time() - start_time
+    # fps = 1 / elapsed_time if elapsed_time > 0 else 0
+    # print(f"FPS: {fps:.2f}")
+
+    # Press 'q' to exit
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
+ser.close()
+cv2.destroyAllWindows()
