@@ -7,7 +7,7 @@
 ArduCAM myCAM(OV2640, CS_PIN);
 
 void setup() {
-    Serial.begin(921600);
+    Serial.begin(1000000);
     Wire.begin();
     SPI.begin();
     pinMode(CS_PIN, OUTPUT);
@@ -21,9 +21,9 @@ void setup() {
 
     // Reset and initialize camera
     myCAM.write_reg(0x07, 0x80); // Software reset
-    delay(100);
+    delay(75);
     myCAM.write_reg(0x07, 0x00); // Exit reset
-    delay(100);
+    delay(75);
 
     // Declare VID and PID variables
     uint8_t vid, pid;
@@ -43,7 +43,7 @@ void setup() {
     myCAM.set_format(JPEG);
     myCAM.InitCAM();
     myCAM.OV2640_set_JPEG_size(OV2640_320x240);  // Set resolution
-    delay(500);
+    delay(250);
 }
 
 void loop() {
