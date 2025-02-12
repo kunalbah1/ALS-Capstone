@@ -4,7 +4,7 @@ import cv2
 import time
 
 # Increase baud rate for faster transmission
-BAUD_RATE = 921600  # Try 1,000,000 if supported
+BAUD_RATE = 1000000 # Try 1,000,000 if supported
 SERIAL_PORT = "COM6"  # Adjust based on your setup
 
 # Open serial connection
@@ -55,10 +55,9 @@ while True:
     # Display frame
     cv2.imshow("ArduCAM Stream", frame)
 
-    # Calculate FPS
-    # elapsed_time = time.time() - start_time
-    # fps = 1 / elapsed_time if elapsed_time > 0 else 0
-    # print(f"FPS: {fps:.2f}")
+    elapsed_time = time.time() - start_time
+    fps = 1 / elapsed_time if elapsed_time > 0 else 0
+    print(f"FPS: {fps:.2f}")
 
     # Press 'q' to exit
     if cv2.waitKey(1) & 0xFF == ord("q"):
