@@ -15,7 +15,7 @@ void setup() {
     Serial.begin(921600);
     Wire.begin();
     SPI.begin();
-    SPI.setClockDivider(SPI_CLOCK_DIV2);  // Use a fast SPI clock if your hardware supports it
+    // SPI.setClockDivider(SPI_CLOCK_DIV2);  // Use a fast SPI clock if your hardware supports it
     pinMode(CS_PIN, OUTPUT);
     digitalWrite(CS_PIN, HIGH);
 
