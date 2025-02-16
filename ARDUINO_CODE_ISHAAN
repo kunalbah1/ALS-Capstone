@@ -3,12 +3,10 @@
 #include "ArduCAM.h"
 #include "memorysaver.h"
 
-"""
-wire.h: Includes the I²C communication library which is used to communicate with I²C devices.
-spi.h: Includes the SPI communication library needed for interfacing with the ArduCAM module over SPI.
-arducam.h: Brings in the ArduCAM library that contains functions to control the camera module.
-memorysaver.h: Includes a header that manages which camera modules are supported and “saves” memory by including only the necessary definitions.
-"""
+// wire.h: Includes the I²C communication library which is used to communicate with I²C devices.
+// spi.h: Includes the SPI communication library needed for interfacing with the ArduCAM module over SPI.
+// arducam.h: Brings in the ArduCAM library that contains functions to control the camera module.
+// memorysaver.h: Includes a header that manages which camera modules are supported and “saves” memory by including only the necessary definitions.
 
 #define CS_PIN 10  // Adjust based on your wiring
 ArduCAM myCAM(OV2640, CS_PIN);
@@ -17,6 +15,7 @@ void setup() {
     Serial.begin(921600);
     Wire.begin();
     SPI.begin();
+    SPI.setClockDivider(SPI_CLOCK_DIV2);  // Use a fast SPI clock if your hardware supports it
     pinMode(CS_PIN, OUTPUT);
     digitalWrite(CS_PIN, HIGH);
 
@@ -41,8 +40,8 @@ void setup() {
     myCAM.rdSensorReg8_8(0x0A, &vid);
     myCAM.rdSensorReg8_8(0x0B, &pid);
 
-    Serial.print("VID: 0x"); Serial.println(vid, HEX);
-    Serial.print("PID: 0x"); Serial.println(pid, HEX);
+    // Serial.print("VID: 0x"); Serial.println(vid, HEX);
+    // Serial.print("PID: 0x"); Serial.println(pid, HEX);
 
     if ((vid != 0x26) || (pid != 0x42)) {  // Expected values for OV2640
         Serial.println("Wrong Camera!");
@@ -50,21 +49,19 @@ void setup() {
     }
 
     myCAM.set_format(JPEG);
-    //initializes camera
     myCAM.InitCAM();
     myCAM.OV2640_set_JPEG_size(OV2640_320x240);  // Set resolution
     delay(500);
 }
 
 void loop() {
-    Serial.println("📸 Capturing image...");
-    //clears camera FIFO buffer to remove residual data
+    // Serial.println("📸 Capturing image...");
+        //clears camera FIFO buffer to remove residual data
     myCAM.flush_fifo();
-    //reset FIFO flag after clear
+        //reset FIFO flag after clear
     myCAM.clear_fifo_flag();
     myCAM.start_capture();
-
-
+    
     //Enters a loop that continuously checks the trigger register (ARDUCHIP_TRIG) until the capture-done bit (CAP_DONE_MASK) is set. This indicates that the image capture has completed.
     while (!(myCAM.read_reg(ARDUCHIP_TRIG) & CAP_DONE_MASK));
 
@@ -74,7 +71,7 @@ void loop() {
         myCAM.flush_fifo();
         return;
     }
-    Serial.println(fifoLength);
+    // Serial.println(fifoLength);
 
     // Send start marker
     Serial.println("---START---");
@@ -90,5 +87,5 @@ void loop() {
     // Send end marker
     Serial.println("---END---");
 
-    delay(200);  // Adjusted for higher frame rate
+    delay(100);  // Adjusted for higher frame rate
 }
