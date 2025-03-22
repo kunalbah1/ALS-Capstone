@@ -43,7 +43,7 @@ def read_frame():
 num_landmarks = 16  # Update if necessary.
 input_size = (150, 90)  # (width, height) as used during training.
 model = CNN.StackedHourglass()
-model_path = "eye_landmark_model2.pth"
+model_path = "eye_landmark_model.pth"
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model file not found: {model_path}")
 model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
