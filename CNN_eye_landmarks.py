@@ -302,29 +302,29 @@ if __name__ == '__main__':
 
             # ------------------------------------------- DEBUGGING -------------------------------------------
 
-            pred_coords = softargmax(pred_heatmaps)[0].detach().cpu().numpy()
-            gt_coords = softargmax(gt_heatmaps)[0].detach().cpu().numpy()
-
-            pred_x, pred_y = pred_coords[:, 1], pred_coords[:, 0]
-            gt_x, gt_y = gt_coords[:, 1], gt_coords[:, 0]
-
-            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-
-            axs[0].imshow(pred_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot")
-            axs[0].scatter(pred_x, pred_y, color='blue', s=40, label="Pred")
-            axs[0].set_title("Predicted")
-
-            axs[1].imshow(gt_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot",)
-            axs[1].scatter(gt_x, gt_y, color='green', s=40, label="GT")
-            axs[1].set_title("Ground Truth")
-
-            for ax in axs:
-                ax.legend()
-
-            plt.tight_layout()
-            plt.show()
-
-            print("Heatmap stats:", pred_heatmaps.max().item(), pred_heatmaps.min().item(), pred_heatmaps.mean().item())
+            # pred_coords = softargmax(pred_heatmaps)[0].detach().cpu().numpy()
+            # gt_coords = softargmax(gt_heatmaps)[0].detach().cpu().numpy()
+            #
+            # pred_x, pred_y = pred_coords[:, 1], pred_coords[:, 0]
+            # gt_x, gt_y = gt_coords[:, 1], gt_coords[:, 0]
+            #
+            # fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+            #
+            # axs[0].imshow(pred_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot")
+            # axs[0].scatter(pred_x, pred_y, color='blue', s=40, label="Pred")
+            # axs[0].set_title("Predicted")
+            #
+            # axs[1].imshow(gt_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot",)
+            # axs[1].scatter(gt_x, gt_y, color='green', s=40, label="GT")
+            # axs[1].set_title("Ground Truth")
+            #
+            # for ax in axs:
+            #     ax.legend()
+            #
+            # plt.tight_layout()
+            # plt.show()
+            #
+            # print("Heatmap stats:", pred_heatmaps.max().item(), pred_heatmaps.min().item(), pred_heatmaps.mean().item())
 
             # ------------------------------------------- DEBUGGING -------------------------------------------
 
