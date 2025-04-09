@@ -219,7 +219,7 @@ class SoftArgmax2D(nn.Module):
         self.normalize = normalize
 
     def forward(self, heatmaps):
-        temperature = 1.0
+        temperature = 0.1
         # heatmaps shape: [B, num_landmarks, H, W]
         b, c, h, w = heatmaps.shape  # b = batch size, n = num_landmarks, h & w is height and width
         heatmaps_flat = heatmaps.view(b, c, -1) / temperature
@@ -280,7 +280,17 @@ if __name__ == '__main__':
             pred_heatmaps = model(imgs)
             loss = criterion(pred_heatmaps, gt_heatmaps)
 
-            # ------------------------------------------- HEATMAP -------------------------------------------
+            # ------------------------------------------- GT HEATMAP -------------------------------------------
+
+            # for i in range(gt_heatmaps.shape[1]):
+            #     plt.imshow(gt_heatmaps[0, i].detach().cpu(), cmap='jet')
+            #     plt.title(f'Pred Heatmap {i}')
+            #     plt.colorbar()
+            #     plt.show()
+
+            # ------------------------------------------- GT HEATMAP -------------------------------------------
+
+            # ------------------------------------------- PRED HEATMAP -------------------------------------------
 
             # for i in range(pred_heatmaps.shape[1]):
             #     plt.imshow(pred_heatmaps[0, i].detach().cpu(), cmap='jet')
@@ -288,7 +298,7 @@ if __name__ == '__main__':
             #     plt.colorbar()
             #     plt.show()
 
-            # ------------------------------------------- HEATMAP -------------------------------------------
+            # ------------------------------------------- PRED HEATMAP -------------------------------------------
 
             # ------------------------------------------- DEBUGGING -------------------------------------------
 
@@ -304,7 +314,7 @@ if __name__ == '__main__':
             axs[0].scatter(pred_x, pred_y, color='blue', s=40, label="Pred")
             axs[0].set_title("Predicted")
 
-            axs[1].imshow(gt_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot")
+            axs[1].imshow(gt_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot",)
             axs[1].scatter(gt_x, gt_y, color='green', s=40, label="GT")
             axs[1].set_title("Ground Truth")
 
