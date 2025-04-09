@@ -7,6 +7,17 @@ import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+import matplotlib.pyplot as plt
+
+gol_input_size = (250, 250)
+
+
+def visualize_heatmap(heatmap):
+    """Display a single heatmap."""
+    plt.imshow(heatmap, cmap='jet')  # 'jet' gives a nice color gradient
+    plt.colorbar()
+    plt.title("Landmark Heatmap")
+    plt.show()
 
 
 #####################################
@@ -38,6 +49,7 @@ def generate_heatmap(center, heatmap_size, sigma):
     exponent = -dist_sq / (2 * sigma ** 2)
     heatmap = np.exp(exponent)
     heatmap = heatmap / np.max(heatmap)
+    # visualize_heatmap(heatmap)
     return heatmap
 
 
@@ -46,7 +58,7 @@ def generate_heatmap(center, heatmap_size, sigma):
 #####################################
 
 class EyeLandmarkDataset(Dataset):
-    def __init__(self, data_dir, input_size=(150, 90), sigma=1.5):
+    def __init__(self, data_dir, input_size=gol_input_size, sigma=1.5):
         """
         data_dir: directory containing jpg and json files.
         input_size: desired size for network input (width, height).
@@ -79,7 +91,8 @@ class EyeLandmarkDataset(Dataset):
         # Load and transform image.
         image = Image.open(img_path).convert("RGB")
         orig_w, orig_h = image.size  # (width, height)
-        image_resized = self.transform(image)
+        image_resized = self.transform(
+            image)  # Transform will shift the synthesized image in reference to the input_size
         target_h, target_w = self.input_size
 
         # Load JSON.
@@ -99,7 +112,7 @@ class EyeLandmarkDataset(Dataset):
             # Scale coordinates from original image to resized image.
             x = x * (target_w / orig_w)
             y = y * (target_h / orig_h)
-            scaled_landmarks.append((x, y))
+            scaled_landmarks.append((x, y))  # Correct for the input_size that you have
 
         # Assume the network downsamples by a factor of 2.
         heatmap_size = (target_h // 2, target_w // 2)  # (height, width)
@@ -123,12 +136,14 @@ class EyeLandmarkDataset(Dataset):
 class Residual(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(Residual, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
+                               padding=1)  # Sets up a 2D 3 x 3 convolution matrix to do stuff
+        self.bn1 = nn.BatchNorm2d(out_channels)  # idk but like its important
+        self.relu = nn.ReLU(inplace=True)  # same
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3,
+                               padding=1)  # Sets up another 2D 3 x 3 convolution matrix (layer 2)
         self.bn2 = nn.BatchNorm2d(out_channels)
-        if in_channels != out_channels:
+        if in_channels != out_channels:  # If there isn't a 1 to 1 input to output ratio something is wrong.
             self.skip = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=1),
                 nn.BatchNorm2d(out_channels)
@@ -147,19 +162,24 @@ class Residual(nn.Module):
 
 # Simplified Hourglass Module.
 class Hourglass(nn.Module):
-    def __init__(self, channels):
+    def __init__(self, channels):  # The channels refer to the depth of the feature space
         super(Hourglass, self).__init__()
-        self.res1 = Residual(channels, channels)
+        self.res1 = Residual(channels, channels)  # The 3 x 3 conv matrix for layer 1
         self.pool = nn.MaxPool2d(2, 2)
-        self.res2 = Residual(channels, channels)
+        self.res2 = Residual(channels, channels)  # Layer 2
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
-    def forward(self, x):
+    # Down sampling: Reducing spatial resolution while maintaining key info
+        # Example: Pooling via maximum value to create a 2x2 matrix from a 4x4
+
+    # Up sampling: Increasing spatial resolution to try and restore details
+
+    def forward(self, x):  # Defines dataflow through the hourglass
         skip = self.res1(x)
         down = self.pool(x)
         down = self.res2(down)
         # Use F.interpolate with size set to skip's spatial dimensions:
-        up = F.interpolate(down, size=skip.shape[2:], mode='bilinear', align_corners=True)
+        up = F.interpolate(down, size=skip.shape[2:], mode='bilinear', align_corners=True) # Return the down sample to its original size and add it back
         return skip + up
 
 
@@ -195,7 +215,7 @@ class SoftArgmax2D(nn.Module):
 
     def forward(self, heatmaps):
         # heatmaps shape: [B, num_landmarks, H, W]
-        b, n, h, w = heatmaps.size()
+        b, n, h, w = heatmaps.size() # b = batch size, n = num_landmarks, h & w is height and width
         heatmaps = heatmaps.view(b, n, -1)
         softmax = F.softmax(heatmaps, dim=-1)
         indices = torch.arange(h * w, device=heatmaps.device, dtype=heatmaps.dtype).view(1, 1, -1)
@@ -216,12 +236,32 @@ class SoftArgmax2D(nn.Module):
 if __name__ == '__main__':
     # Set parameters.
     data_dir = "test_imgs"  # Replace with your dataset directory.
-    input_size = (90, 150)  # (width, height)
+    input_size = gol_input_size  # (width, height)
     sigma = 1.5
 
     # Create dataset and dataloader.
     dataset = EyeLandmarkDataset(data_dir, input_size=input_size, sigma=sigma)
     dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
+
+    ###################################### DEBUGGING
+
+    img, target_hmaps = dataset[0]  # Get one image + its heatmaps
+    img_np = transforms.ToPILImage()(img)
+
+    import matplotlib.pyplot as plt
+
+    # Show the original image
+    plt.imshow(img_np)
+    plt.title("Training Image")
+    plt.show()
+
+    # Show a few target heatmaps
+    for i in range(min(5, target_hmaps.shape[0])):
+        plt.imshow(target_hmaps[i], cmap='hot')
+        plt.title(f"Target Heatmap {i}")
+        plt.show()
+
+    ##############################################
 
     # Determine number of landmarks from one sample.
     sample_img, sample_heatmaps = dataset[0]
@@ -249,3 +289,5 @@ if __name__ == '__main__':
     # Save the trained model.
     torch.save(model.state_dict(), "eye_landmark_model2.pth")
     print("Model saved to eye_landmark_model2.pth")
+
+    
