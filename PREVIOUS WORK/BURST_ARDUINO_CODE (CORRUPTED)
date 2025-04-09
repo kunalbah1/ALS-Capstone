@@ -1,0 +1,69 @@
+#include <Wire.h>
+#include <SPI.h>
+#include "ArduCAM.h"
+#include "memorysaver.h"
+
+#define CS_PIN 7
+ArduCAM myCAM(OV2640, CS_PIN);
+
+void setup() {
+    Serial.begin(921600);
+    Wire.begin();
+    SPI.begin();
+    pinMode(CS_PIN, OUTPUT);
+    digitalWrite(CS_PIN, HIGH);
+
+    myCAM.write_reg(ARDUCHIP_TEST1, 0x55);
+    if (myCAM.read_reg(ARDUCHIP_TEST1) != 0x55) {
+        Serial.println("SPI communication failed!");
+        while (1);
+    }
+
+    myCAM.write_reg(0x07, 0x80);
+    delay(100);
+    myCAM.write_reg(0x07, 0x00);
+    delay(100);
+
+    uint8_t vid, pid;
+    myCAM.wrSensorReg8_8(0xff, 0x01);
+    myCAM.rdSensorReg8_8(0x0A, &vid);
+    myCAM.rdSensorReg8_8(0x0B, &pid);
+
+    if ((vid != 0x26) || (pid != 0x42)) {
+        Serial.println("Wrong Camera!");
+        while (1);
+    }
+
+    myCAM.set_format(JPEG);
+    myCAM.InitCAM();
+    myCAM.OV2640_set_JPEG_size(OV2640_320x240);
+    delay(500);
+}
+
+void loop() {
+    myCAM.flush_fifo();
+    myCAM.clear_fifo_flag();
+    myCAM.start_capture();
+
+    while (!(myCAM.read_reg(ARDUCHIP_TRIG) & CAP_DONE_MASK));
+
+    uint32_t fifoLength = myCAM.read_fifo_length();
+    if (fifoLength == 0 || fifoLength > 500000) {
+        myCAM.flush_fifo();
+        return;
+    }
+
+    Serial.println("---START---");
+
+    myCAM.CS_LOW();
+    const uint8_t burst_read_cmd = 0x3C;
+    SPI.transfer(burst_read_cmd);
+    for (uint32_t i = 0; i < fifoLength; i++) {
+        Serial.write(SPI.transfer(0x00));
+    }
+    myCAM.CS_HIGH();
+
+    Serial.println("---END---");
+
+    delay(10);
+}

@@ -4,7 +4,7 @@ import cv2
 import time
 
 # Increase baud rate for faster transmission
-BAUD_RATE = 1000000 # Try 1,000,000 if supported
+BAUD_RATE = 921600 # Try 1,000,000 if supported
 SERIAL_PORT = "COM6"  # Adjust based on your setup
 
 # Open serial connection
