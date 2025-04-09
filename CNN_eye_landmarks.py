@@ -7,6 +7,9 @@ import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+import matplotlib
+matplotlib.use('TkAgg')  # Or 'Qt5Agg', 'Agg', etc., depending on your system
+
 import matplotlib.pyplot as plt
 
 gol_input_size = (250, 250)
@@ -170,7 +173,7 @@ class Hourglass(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
     # Down sampling: Reducing spatial resolution while maintaining key info
-        # Example: Pooling via maximum value to create a 2x2 matrix from a 4x4
+    # Example: Pooling via maximum value to create a 2x2 matrix from a 4x4
 
     # Up sampling: Increasing spatial resolution to try and restore details
 
@@ -179,7 +182,8 @@ class Hourglass(nn.Module):
         down = self.pool(x)
         down = self.res2(down)
         # Use F.interpolate with size set to skip's spatial dimensions:
-        up = F.interpolate(down, size=skip.shape[2:], mode='bilinear', align_corners=True) # Return the down sample to its original size and add it back
+        up = F.interpolate(down, size=skip.shape[2:], mode='bilinear',
+                           align_corners=True)  # Return the down sample to its original size and add it back
         return skip + up
 
 
@@ -214,19 +218,39 @@ class SoftArgmax2D(nn.Module):
         self.normalize = normalize
 
     def forward(self, heatmaps):
+        temperature = 1.0
         # heatmaps shape: [B, num_landmarks, H, W]
-        b, n, h, w = heatmaps.size() # b = batch size, n = num_landmarks, h & w is height and width
-        heatmaps = heatmaps.view(b, n, -1)
-        softmax = F.softmax(heatmaps, dim=-1)
-        indices = torch.arange(h * w, device=heatmaps.device, dtype=heatmaps.dtype).view(1, 1, -1)
-        coords = torch.sum(softmax * indices, dim=-1)
-        x = coords % w
-        y = coords // w
-        if self.normalize:
-            x = x / (w - 1)
-            y = y / (h - 1)
-        coords = torch.stack([x, y], dim=-1)
+        b, c, h, w = heatmaps.shape  # b = batch size, n = num_landmarks, h & w is height and width
+        flat = heatmaps.view(b, c, -1)
+        indices = flat.argmax(dim=2)  # shape: [b, c]
+        x = indices % w
+        y = indices // w
+        coords = torch.stack([x, y], dim=-1).float()
         return coords
+
+
+        # heatmaps_flat = heatmaps.view(b, c, -1) / temperature
+        # softmaxed = F.softmax(heatmaps_flat, dim=2)
+        #
+        # coords = torch.stack(torch.meshgrid(torch.arange(h), torch.arange(w), indexing="ij"), dim=-1)  # (H, W, 2)
+        # coords = coords.reshape(-1, 2).to(heatmaps.device).float()  # (H*W, 2)
+        #
+        # expected_coords = torch.einsum("bcn,nk->bck", softmaxed, coords)  # (B, C, 2)
+        # return expected_coords
+
+
+
+        # heatmaps = heatmaps.view(b, n, -1)
+        # softmax = F.softmax(heatmaps, dim=-1)
+        # indices = torch.arange(h * w, device=heatmaps.device, dtype=heatmaps.dtype).view(1, 1, -1)
+        # coords = torch.sum(softmax * indices, dim=-1)
+        # x = coords % w
+        # y = coords // w
+        # if self.normalize:
+        #     x = x / (w - 1)
+        #     y = y / (h - 1)
+        # coords = torch.stack([x, y], dim=-1)
+        # return coords
 
 
 #####################################
@@ -243,25 +267,7 @@ if __name__ == '__main__':
     dataset = EyeLandmarkDataset(data_dir, input_size=input_size, sigma=sigma)
     dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
 
-    ###################################### DEBUGGING
-
-    img, target_hmaps = dataset[0]  # Get one image + its heatmaps
-    img_np = transforms.ToPILImage()(img)
-
-    import matplotlib.pyplot as plt
-
-    # Show the original image
-    plt.imshow(img_np)
-    plt.title("Training Image")
-    plt.show()
-
-    # Show a few target heatmaps
-    for i in range(min(5, target_hmaps.shape[0])):
-        plt.imshow(target_hmaps[i], cmap='hot')
-        plt.title(f"Target Heatmap {i}")
-        plt.show()
-
-    ##############################################
+    softargmax = SoftArgmax2D()
 
     # Determine number of landmarks from one sample.
     sample_img, sample_heatmaps = dataset[0]
@@ -275,12 +281,52 @@ if __name__ == '__main__':
     # Training loop.
     model.train()
     num_epochs = 10
+
     for epoch in range(num_epochs):
         epoch_loss = 0.0
         for imgs, gt_heatmaps in dataloader:
             optimizer.zero_grad()
             pred_heatmaps = model(imgs)
             loss = criterion(pred_heatmaps, gt_heatmaps)
+
+            # How does the heat map look like??
+
+            for i in range(gt_heatmaps[1]):
+                plt.imshow(gt_heatmaps[0, i].detach().cpu(), cmap='jet')
+                plt.title(f'Pred Heatmap {i}')
+                plt.colorbar()
+                plt.show()
+
+            # End heatmap stuff
+
+            # ------------------------------------------- DEBUGGING -------------------------------------------
+
+            pred_coords = softargmax(pred_heatmaps)[0].detach().cpu().numpy()
+            gt_coords = softargmax(gt_heatmaps)[0].detach().cpu().numpy()
+
+            pred_x, pred_y = pred_coords[:, 1], pred_coords[:, 0]
+            gt_x, gt_y = gt_coords[:, 1], gt_coords[:, 0]
+
+            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
+            axs[0].imshow(pred_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot")
+            axs[0].scatter(pred_x, pred_y, color='blue', s=40, label="Pred")
+            axs[0].set_title("Predicted")
+
+            axs[1].imshow(gt_heatmaps[0].detach().cpu().mean(dim=0).numpy(), cmap="hot")
+            axs[1].scatter(gt_x, gt_y, color='green', s=40, label="GT")
+            axs[1].set_title("Ground Truth")
+
+            for ax in axs:
+                ax.legend()
+
+            plt.tight_layout()
+            plt.show()
+
+            print("Heatmap stats:", pred_heatmaps.max().item(), pred_heatmaps.min().item(), pred_heatmaps.mean().item())
+
+            # ------------------------------------------- DEBUGGING -------------------------------------------
+
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
@@ -289,5 +335,3 @@ if __name__ == '__main__':
     # Save the trained model.
     torch.save(model.state_dict(), "eye_landmark_model2.pth")
     print("Model saved to eye_landmark_model2.pth")
-
-    
