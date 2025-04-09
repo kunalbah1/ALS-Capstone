@@ -8,6 +8,7 @@ from PIL import Image
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import matplotlib
+
 matplotlib.use('TkAgg')  # Or 'Qt5Agg', 'Agg', etc., depending on your system
 
 import matplotlib.pyplot as plt
@@ -221,24 +222,14 @@ class SoftArgmax2D(nn.Module):
         temperature = 1.0
         # heatmaps shape: [B, num_landmarks, H, W]
         b, c, h, w = heatmaps.shape  # b = batch size, n = num_landmarks, h & w is height and width
-        flat = heatmaps.view(b, c, -1)
-        indices = flat.argmax(dim=2)  # shape: [b, c]
-        x = indices % w
-        y = indices // w
-        coords = torch.stack([x, y], dim=-1).float()
-        return coords
+        heatmaps_flat = heatmaps.view(b, c, -1) / temperature
+        softmaxed = F.softmax(heatmaps_flat, dim=2)
 
+        coords = torch.stack(torch.meshgrid(torch.arange(h), torch.arange(w), indexing="ij"), dim=-1)  # (H, W, 2)
+        coords = coords.reshape(-1, 2).to(heatmaps.device).float()  # (H*W, 2)
 
-        # heatmaps_flat = heatmaps.view(b, c, -1) / temperature
-        # softmaxed = F.softmax(heatmaps_flat, dim=2)
-        #
-        # coords = torch.stack(torch.meshgrid(torch.arange(h), torch.arange(w), indexing="ij"), dim=-1)  # (H, W, 2)
-        # coords = coords.reshape(-1, 2).to(heatmaps.device).float()  # (H*W, 2)
-        #
-        # expected_coords = torch.einsum("bcn,nk->bck", softmaxed, coords)  # (B, C, 2)
-        # return expected_coords
-
-
+        expected_coords = torch.einsum("bcn,nk->bck", softmaxed, coords)  # (B, C, 2)
+        return expected_coords
 
         # heatmaps = heatmaps.view(b, n, -1)
         # softmax = F.softmax(heatmaps, dim=-1)
@@ -289,15 +280,15 @@ if __name__ == '__main__':
             pred_heatmaps = model(imgs)
             loss = criterion(pred_heatmaps, gt_heatmaps)
 
-            # How does the heat map look like??
+            # ------------------------------------------- HEATMAP -------------------------------------------
 
-            for i in range(gt_heatmaps[1]):
-                plt.imshow(gt_heatmaps[0, i].detach().cpu(), cmap='jet')
-                plt.title(f'Pred Heatmap {i}')
-                plt.colorbar()
-                plt.show()
+            # for i in range(pred_heatmaps.shape[1]):
+            #     plt.imshow(pred_heatmaps[0, i].detach().cpu(), cmap='jet')
+            #     plt.title(f'Pred Heatmap {i}')
+            #     plt.colorbar()
+            #     plt.show()
 
-            # End heatmap stuff
+            # ------------------------------------------- HEATMAP -------------------------------------------
 
             # ------------------------------------------- DEBUGGING -------------------------------------------
 
