@@ -100,9 +100,9 @@ def preprocess_frame(frame):
 ##############################################
 # Step 3: Blink Counting Setup
 ##############################################
-blink_count = 0          # Total blinks counted.
+VBP_count = 0          # Total blinks counted.
 closed_frames = 0        # Count of consecutive frames with eye classified as "Closed."
-MIN_CLOSED_FRAMES = 2    # If the eye is closed for at least 2 consecutive frames, register one blink.
+MIN_VBP_FRAMES = 120    # If the eye is closed for at least 2 consecutive frames, register one blink.
 
 ##############################################
 # Step 4: Live Blink Detection Loop (Using Arducam Serial)
@@ -138,14 +138,14 @@ while True:
     if status == "Closed":
         closed_frames += 1
     else:
-        if closed_frames >= MIN_CLOSED_FRAMES:
-            blink_count += 1
+        if closed_frames >= MIN_VBP_FRAMES:
+            VBP_count += 1
         closed_frames = 0  # Reset the counter when eye is open.
 
     # Annotate the frame with the blink state and blink count.
     label_color = (0, 255, 0) if status == "Open" else (0, 0, 255)
     cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, label_color, 2)
-    cv2.putText(frame, f"Blink Count: {blink_count}", (10, 70), 
+    cv2.putText(frame, f"VBP Count: {VBP_count}", (10, 70),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
 
     # Display the frame.
