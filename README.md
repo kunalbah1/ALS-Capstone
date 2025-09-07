@@ -153,5 +153,5 @@ This folder is a bit messy, but this was done in order to preserve as much mater
 > bugs worked out.
 
 
-Everything here is, of course, a suggestion and whatever I hope that there is something in here that is benefical to your
+Everything here is, of course, a suggestion. I hope that there is something in here that is benefical to your
 capstone group. Good Luck!
